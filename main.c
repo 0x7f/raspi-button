@@ -4,6 +4,7 @@
 #include <wiringPi.h>
 #include <wiringPiI2C.h>
 
+#define BOOT_CHECK_TIME_USEC 500 * 1000
 #define NUM_BUTTONS 14
 #define BUTTON_MIN_DOWN_MS 100
 #define BUTTON_UNKNOWN_STATE -1
@@ -116,10 +117,30 @@ static void poll_buttons() {
     }
 }
 
+static void boot_check() {
+    for (int i = 0; i < NUM_BUTTONS; ++i) {
+        unset_i2c_pin(s_buttons[i].led_i2c_device, s_buttons[i].led_i2c_mask);
+        unset_i2c_pin(s_buttons[i].map_i2c_device, s_buttons[i].map_i2c_mask);
+    }
+    for (int i = 0; i < NUM_BUTTONS; ++i) {
+        set_i2c_pin(s_buttons[i].led_i2c_device, s_buttons[i].led_i2c_mask);
+        usleep(BOOT_CHECK_TIME_USEC);
+        unset_i2c_pin(s_buttons[i].led_i2c_device, s_buttons[i].led_i2c_mask);
+        usleep(BOOT_CHECK_TIME_USEC);
+    }
+    for (int i = 0; i < NUM_BUTTONS; ++i) {
+        set_i2c_pin(s_buttons[i].map_i2c_device, s_buttons[i].map_i2c_mask);
+        usleep(BOOT_CHECK_TIME_USEC);
+        unset_i2c_pin(s_buttons[i].map_i2c_device, s_buttons[i].map_i2c_mask);
+        usleep(BOOT_CHECK_TIME_USEC);
+    }
+}
+
 int main() {
     wiringPiSetup();
     setup_buttons();
     reset_button_states();
+    boot_check();
     for(;;) {
         poll_buttons();
         usleep(500);
