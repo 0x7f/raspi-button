@@ -136,11 +136,16 @@ static void boot_check() {
     }
 }
 
-int main() {
+int main(int argc, char** argv) {
     wiringPiSetup();
     setup_buttons();
     reset_button_states();
-    boot_check();
+    if (argc == 1) {
+        printf("Running boot check...");
+        fflush(stdout);
+        boot_check();
+        printf("done\n");
+    }
     for(;;) {
         poll_buttons();
         usleep(500);
