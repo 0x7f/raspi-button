@@ -44,7 +44,7 @@ static button_t s_buttons[] = {
 
 static void play_sound(int idx) {
     char cmd[128];
-    snprintf(cmd, 128, "aplay button_%d.wav", idx);
+    snprintf(cmd, 128, "aplay -q button_%d.wav", idx);
     system(cmd);
 }
 
@@ -61,6 +61,7 @@ static void unset_i2c_pin(int device, int mask) {
 }
 
 static void button_press_impl(button_t* btn) {
+    printf("Button #%d pressed\n", btn->idx);
     set_i2c_pin(btn->led_i2c_device, btn->led_i2c_mask);
     set_i2c_pin(btn->map_i2c_device, btn->map_i2c_mask);
     play_sound(btn->idx);
