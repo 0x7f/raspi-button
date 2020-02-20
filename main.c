@@ -6,16 +6,13 @@
 
 #define NUM_BUTTONS 14
 #define BUTTON_MIN_DOWN_MS 100
+#define BUTTON_UNKNOWN_STATE -1
+#define BUTTON_DOWN_STATE 0
+#define BUTTON_UP_STATE 1
 
 typedef struct button_s {
     int idx;
-    // button gpio input
     int gpio_pin;
-    int down_edge_type;
-    int up_edge_type;
-    unsigned int down_ts;
-    void (*isr_down_fn)(void);
-    void (*isr_up_fn)(void);
     // button led control
     int led_i2c_device;
     int led_i2c_mask;
@@ -24,107 +21,24 @@ typedef struct button_s {
     int map_i2c_mask;
 } button_t;
 
-static volatile int s_button_active = 0;
+static int s_button_states[NUM_BUTTONS];
+static unsigned int s_button_down_ts[NUM_BUTTONS];
 
-static volatile button_t s_buttons[] = {
-    {
-        .gpio_pin = 0,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 0,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 0,
-    },
-    {
-        .gpio_pin = 1,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 1,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 1,
-    },
-    {
-        .gpio_pin = 2,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 2,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 2,
-    },
-    {
-        .gpio_pin = 3,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 3,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 3,
-    },
-    {
-        .gpio_pin = 4,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 4,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 4,
-    },
-    {
-        .gpio_pin = 5,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 5,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 5,
-    },
-    {
-        .gpio_pin = 6,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 6,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 6,
-    },
-    {
-        .gpio_pin = 7,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 7,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 7,
-    },
-    {
-        .gpio_pin = 8,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 8,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 8,
-    },
-    {
-        .gpio_pin = 9,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 9,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 9,
-    },
-    {
-        .gpio_pin = 10,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 10,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 10,
-    },
-    {
-        .gpio_pin = 11,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 11,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 11,
-    },
-    {
-        .gpio_pin = 12,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 12,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 12,
-    },
-    {
-        .gpio_pin = 13,
-        .led_i2c_device = 0x38,
-        .led_i2c_mask = 1 << 13,
-        .map_i2c_device = 0x39,
-        .map_i2c_mask = 1 << 13,
-    },
+static button_t s_buttons[] = {
+    { 0,  0,  0x38, 1 << 0,  0x39, 1 << 0 },
+    { 1,  1,  0x38, 1 << 1,  0x39, 1 << 1 },
+    { 2,  2,  0x38, 1 << 2,  0x39, 1 << 2 },
+    { 3,  3,  0x38, 1 << 3,  0x39, 1 << 3 },
+    { 4,  4,  0x38, 1 << 4,  0x39, 1 << 4 },
+    { 5,  5,  0x38, 1 << 5,  0x39, 1 << 5 },
+    { 6,  6,  0x38, 1 << 6,  0x39, 1 << 6 },
+    { 7,  7,  0x38, 1 << 7,  0x39, 1 << 7 },
+    { 8,  8,  0x38, 1 << 8,  0x39, 1 << 8 },
+    { 9,  9,  0x38, 1 << 9,  0x39, 1 << 9 },
+    { 10, 10, 0x38, 1 << 10, 0x39, 1 << 10 },
+    { 11, 11, 0x38, 1 << 11, 0x39, 1 << 11 },
+    { 12, 12, 0x38, 1 << 12, 0x39, 1 << 12 },
+    { 13, 13, 0x38, 1 << 13, 0x39, 1 << 13 },
 };
 
 static void play_sound(int idx) {
@@ -145,7 +59,7 @@ static void unset_i2c_pin(int device, int mask) {
     wiringPiI2CWrite(device, mask);
 }
 
-static void button_press_impl(volatile button_t* btn) {
+static void button_press_impl(button_t* btn) {
     set_i2c_pin(btn->led_i2c_device, btn->led_i2c_mask);
     set_i2c_pin(btn->map_i2c_device, btn->map_i2c_mask);
     play_sound(btn->idx);
@@ -155,58 +69,8 @@ static void button_press_impl(volatile button_t* btn) {
 
 static void reset_button_states() {
     for (int i = 0; i < NUM_BUTTONS; ++i) {
-        s_buttons[i].down_ts = 0;
-    }
-}
-
-static void isr_button_down(volatile button_t* btn) {
-    if (s_button_active) {
-        return;
-    }
-    btn->down_ts = millis();
-}
-
-static void isr_button_up(volatile button_t* btn) {
-    unsigned int now = millis();
-    if (btn->down_ts + BUTTON_MIN_DOWN_MS > now || s_button_active) {
-        btn->down_ts = 0;
-        return;
-    }
-
-    // the button is really active and obviously the first to
-    // get above BUTTON_MIN_DOWN_MS, so let's reset all buttons again
-
-    s_button_active = 1;
-    reset_button_states();
-    button_press_impl(btn);
-    s_button_active = 0;
-}
-
-#define DEFINE_BUTTON_FUNCTIONS(X) \
-    static void isr_button_down_##X() { isr_button_down(&s_buttons[X]); } \
-    static void isr_button_up_##X() { isr_button_up(&s_buttons[X]); }
-
-DEFINE_BUTTON_FUNCTIONS(0)
-DEFINE_BUTTON_FUNCTIONS(1)
-DEFINE_BUTTON_FUNCTIONS(2)
-DEFINE_BUTTON_FUNCTIONS(3)
-DEFINE_BUTTON_FUNCTIONS(4)
-DEFINE_BUTTON_FUNCTIONS(5)
-DEFINE_BUTTON_FUNCTIONS(6)
-DEFINE_BUTTON_FUNCTIONS(7)
-DEFINE_BUTTON_FUNCTIONS(8)
-DEFINE_BUTTON_FUNCTIONS(9)
-DEFINE_BUTTON_FUNCTIONS(10)
-DEFINE_BUTTON_FUNCTIONS(11)
-DEFINE_BUTTON_FUNCTIONS(12)
-DEFINE_BUTTON_FUNCTIONS(13)
-
-static void init_buttons() {
-    for (int i = 0; i < NUM_BUTTONS; ++i) {
-        s_buttons[i].idx = i;
-        s_buttons[i].down_ts = 0;
-        s_buttons[i].down_edge_type = INT_EDGE_FALLING;
-        s_buttons[i].up_edge_type = INT_EDGE_RISING;
+        s_button_states[i] = BUTTON_UNKNOWN_STATE;
+        s_button_down_ts[i] = 0;
     }
 }
 
@@ -214,51 +78,51 @@ static void setup_buttons() {
     for (int i = 0; i < NUM_BUTTONS; ++i) {
         pinMode(s_buttons[i].gpio_pin, INPUT);
     }
-
-#define ASSIGN_BUTTON_FUNCTIONS(X) \
-
-    ASSIGN_BUTTON_FUNCTIONS(0)
-    ASSIGN_BUTTON_FUNCTIONS(1)
-    ASSIGN_BUTTON_FUNCTIONS(2)
-    ASSIGN_BUTTON_FUNCTIONS(3)
-    ASSIGN_BUTTON_FUNCTIONS(4)
-    ASSIGN_BUTTON_FUNCTIONS(5)
-    ASSIGN_BUTTON_FUNCTIONS(6)
-    ASSIGN_BUTTON_FUNCTIONS(7)
-    ASSIGN_BUTTON_FUNCTIONS(8)
-    ASSIGN_BUTTON_FUNCTIONS(9)
-    ASSIGN_BUTTON_FUNCTIONS(10)
-    ASSIGN_BUTTON_FUNCTIONS(11)
-    ASSIGN_BUTTON_FUNCTIONS(12)
-    ASSIGN_BUTTON_FUNCTIONS(13)
 }
 
-static void register_isr() {
-    int res;
+static void poll_buttons() {
     for (int i = 0; i < NUM_BUTTONS; ++i) {
-        res = wiringPiISR(s_buttons[i].gpio_pin, s_buttons[i].down_edge_type, s_buttons[i].isr_down_fn);
-        if (res != 0) {
-            fprintf(stderr, "Error while registering isr down handler for button %d: %d\n", i, res);
-            exit(1);
-            return;
+        int old_state = s_button_states[i];
+        int new_state = digitalRead(s_buttons[i].gpio_pin);
+        if (old_state == BUTTON_UNKNOWN_STATE) {
+            // keep button as unknown when already down before unknown
+            if (new_state == BUTTON_UP_STATE) {
+                s_button_states[i] = BUTTON_UP_STATE;
+            }
+            continue;
         }
 
-        res = wiringPiISR(s_buttons[i].gpio_pin, s_buttons[i].up_edge_type, s_buttons[i].isr_up_fn);
-        if (res != 0) {
-            fprintf(stderr, "Error while registering isr up handler for button %d: %d\n", i, res);
-            exit(1);
-            return;
+        if (old_state != new_state) {
+            s_button_states[i] = new_state;
+            if (new_state == BUTTON_DOWN_STATE) {
+                s_button_down_ts[i] = millis();
+            } else {
+                s_button_down_ts[i] = 0;
+            }
+            continue;
+        }
+
+        if (new_state == BUTTON_UP_STATE) {
+            continue;
+        }
+
+        // button was and is in down state. let's check since how long already
+        int now = millis();
+        if (s_button_down_ts[i] + BUTTON_MIN_DOWN_MS > now) {
+            button_press_impl(&s_buttons[i]);
+            reset_button_states();
+            break;
         }
     }
 }
 
 int main() {
     wiringPiSetup();
-    init_buttons();
     setup_buttons();
-    register_isr();
+    reset_button_states();
     for(;;) {
-        sleep(1);
+        poll_buttons();
+        usleep(500);
     }
     return 0;
 }
