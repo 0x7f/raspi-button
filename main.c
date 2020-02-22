@@ -14,32 +14,28 @@
 typedef struct button_s {
     int idx;
     int gpio_pin;
-    // button led control
-    int led_i2c_device;
-    int led_i2c_mask;
-    // map lighting control
-    int map_i2c_device;
-    int map_i2c_mask;
+    int i2c_device;
+    int i2c_mask;
 } button_t;
 
 static int s_button_states[NUM_BUTTONS];
 static unsigned int s_button_down_ts[NUM_BUTTONS];
 
 static button_t s_buttons[] = {
-    { 0,  0,  0x38, 1 << 0,  0x39, 1 << 0 },
-    { 1,  1,  0x38, 1 << 1,  0x39, 1 << 1 },
-    { 2,  2,  0x38, 1 << 2,  0x39, 1 << 2 },
-    { 3,  3,  0x38, 1 << 3,  0x39, 1 << 3 },
-    { 4,  4,  0x38, 1 << 4,  0x39, 1 << 4 },
-    { 5,  5,  0x38, 1 << 5,  0x39, 1 << 5 },
-    { 6,  6,  0x38, 1 << 6,  0x39, 1 << 6 },
-    { 7,  7,  0x38, 1 << 7,  0x39, 1 << 7 },
-    { 8,  8,  0x38, 1 << 8,  0x39, 1 << 8 },
-    { 9,  9,  0x38, 1 << 9,  0x39, 1 << 9 },
-    { 10, 10, 0x38, 1 << 10, 0x39, 1 << 10 },
-    { 11, 11, 0x38, 1 << 11, 0x39, 1 << 11 },
-    { 12, 12, 0x38, 1 << 12, 0x39, 1 << 12 },
-    { 13, 13, 0x38, 1 << 13, 0x39, 1 << 13 },
+    { 0,  0,  0x38, 1 << 0,  },
+    { 1,  1,  0x38, 1 << 1,  },
+    { 2,  2,  0x38, 1 << 2,  },
+    { 3,  3,  0x38, 1 << 3,  },
+    { 4,  4,  0x38, 1 << 4,  },
+    { 5,  5,  0x38, 1 << 5,  },
+    { 6,  6,  0x38, 1 << 6,  },
+    { 7,  7,  0x38, 1 << 7,  },
+    { 8,  8,  0x38, 1 << 8,  },
+    { 9,  9,  0x39, 1 << 0,  },
+    { 10, 10, 0x39, 1 << 1,  },
+    { 11, 11, 0x39, 1 << 2,  },
+    { 12, 12, 0x39, 1 << 3,  },
+    { 13, 13, 0x39, 1 << 4,  },
 };
 
 static void play_sound(int idx) {
@@ -62,11 +58,9 @@ static void unset_i2c_pin(int device, int mask) {
 
 static void button_press_impl(button_t* btn) {
     printf("Button #%d pressed\n", btn->idx);
-    set_i2c_pin(btn->led_i2c_device, btn->led_i2c_mask);
-    set_i2c_pin(btn->map_i2c_device, btn->map_i2c_mask);
+    set_i2c_pin(btn->i2c_device, btn->i2c_mask);
     play_sound(btn->idx);
-    unset_i2c_pin(btn->led_i2c_device, btn->led_i2c_mask);
-    unset_i2c_pin(btn->map_i2c_device, btn->map_i2c_mask);
+    unset_i2c_pin(btn->i2c_device, btn->i2c_mask);
 }
 
 static void reset_button_states() {
@@ -120,19 +114,12 @@ static void poll_buttons() {
 
 static void boot_check() {
     for (int i = 0; i < NUM_BUTTONS; ++i) {
-        unset_i2c_pin(s_buttons[i].led_i2c_device, s_buttons[i].led_i2c_mask);
-        unset_i2c_pin(s_buttons[i].map_i2c_device, s_buttons[i].map_i2c_mask);
+        unset_i2c_pin(s_buttons[i].i2c_device, s_buttons[i].i2c_mask);
     }
     for (int i = 0; i < NUM_BUTTONS; ++i) {
-        set_i2c_pin(s_buttons[i].led_i2c_device, s_buttons[i].led_i2c_mask);
+        set_i2c_pin(s_buttons[i].i2c_device, s_buttons[i].i2c_mask);
         usleep(BOOT_CHECK_TIME_USEC);
-        unset_i2c_pin(s_buttons[i].led_i2c_device, s_buttons[i].led_i2c_mask);
-        usleep(BOOT_CHECK_TIME_USEC);
-    }
-    for (int i = 0; i < NUM_BUTTONS; ++i) {
-        set_i2c_pin(s_buttons[i].map_i2c_device, s_buttons[i].map_i2c_mask);
-        usleep(BOOT_CHECK_TIME_USEC);
-        unset_i2c_pin(s_buttons[i].map_i2c_device, s_buttons[i].map_i2c_mask);
+        unset_i2c_pin(s_buttons[i].i2c_device, s_buttons[i].i2c_mask);
         usleep(BOOT_CHECK_TIME_USEC);
     }
 }
